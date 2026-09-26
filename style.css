@@ -1,0 +1,291 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #f4f6f9;
+    color: #1e293b;
+    padding: 16px;
+}
+
+.app-header {
+    text-align: center;
+    background: linear-gradient(135deg, #be185d, #4f46e5);
+    color: white;
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.app-header h1 {
+    font-size: 1.35rem;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.app-header p {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.main-container {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+}
+
+.card h2 {
+    font-size: 1.05rem;
+    color: #0f172a;
+    margin-bottom: 12px;
+    border-left: 4px solid #be185d;
+    padding-left: 8px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.card-header h2 {
+    margin-bottom: 0;
+}
+
+.badge-group {
+    display: flex;
+    gap: 8px;
+}
+
+.badge {
+    background: #0f172a;
+    color: #38bdf8;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.viewport-container {
+    position: relative;
+    width: 100%;
+    background: #0f172a;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 380px;
+}
+
+#output-canvas {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.controls-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 9px 14px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.btn.primary {
+    background-color: #be185d;
+    color: white;
+}
+
+.btn.secondary {
+    background-color: #4f46e5;
+    color: white;
+}
+
+.btn.success {
+    background-color: #059669;
+    color: white;
+}
+
+.ar-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 0.88rem;
+}
+
+.slider-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.metric-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.metric-label {
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.metric-value {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.highlight-blue {
+    color: #2563eb;
+}
+
+.highlight-pink {
+    color: #be185d;
+}
+
+.recommendation-banner {
+    background: linear-gradient(to right, #fdf2f8, #eef2ff);
+    border: 1px solid #fbcfe8;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.rec-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #9d174d;
+    text-transform: uppercase;
+}
+
+.rec-style {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #be185d;
+    margin: 4px 0;
+}
+
+.rec-desc {
+    font-size: 0.86rem;
+    color: #334155;
+    line-height: 1.4;
+}
+
+.json-container {
+    background: #0f172a;
+    color: #a7f3d0;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    overflow-x: auto;
+}
+
+.json-header {
+    color: #94a3b8;
+    margin-bottom: 6px;
+    font-size: 0.75rem;
+}
+
+#json-output {
+    font-family: 'Consolas', monospace;
+    line-height: 1.35;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+#exp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+#exp-table th, #exp-table td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 10px;
+    text-align: center;
+}
+
+#exp-table th {
+    background-color: #f1f5f9;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+#exp-table tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+@media (max-width: 992px) {
+    .main-container {
+        grid-template-columns: 1fr;
+    }
+}
+/* Định dạng cho nút Xóa bảng và Xóa từng dòng */
+.btn.danger {
+    background-color: #dc2626;
+    color: white;
+}
+
+.btn-delete-row {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-delete-row:hover {
+    background-color: #b91c1c;
+}

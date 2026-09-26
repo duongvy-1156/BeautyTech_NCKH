@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeautyTech - Hệ thống Tư vấn & Mô phỏng Trang điểm AR</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Nạp thư viện AI MediaPipe Face Mesh (468 điểm 3D) của Google -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <header class="app-header">
+        <h1>HỆ THỐNG BEAUTY TECH - TƯ VẤN & MÔ PHỎNG TRANG ĐIỂM AR THỜI GIAN THỰC</h1>
+        <p>Thực nghiệm bài báo: Công nghệ lựa chọn phong cách trang điểm cho phụ nữ hiện đại (Pipeline 4 Giai đoạn)</p>
+    </header>
+
+    <main class="main-container">
+        <!-- CỘT TRÁI: MÀN HÌNH CAMERA AR & ĐIỀU KHIỂN -->
+        <section class="left-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Giai đoạn 1 & 4: Thu nhận ảnh & Kết xuất đồ họa AR</h2>
+                    <div class="badge-group">
+                        <span class="badge" id="fps-badge">FPS: 0</span>
+                        <span class="badge" id="latency-badge">Độ trễ: 0 ms</span>
+                    </div>
+                </div>
+
+                <!-- Khung hiển thị Video/Ảnh và Lớp phủ AR Canvas -->
+                <div class="viewport-container">
+                    <video id="input-video" playsinline style="display: none;"></video>
+                    <img id="uploaded-image" style="display: none;" crossorigin="anonymous" />
+                    <canvas id="output-canvas" width="640" height="480"></canvas>
+                </div>
+
+                <!-- Thanh công cụ nguồn đầu vào -->
+                <div class="controls-row">
+                    <button id="btn-camera" class="btn primary">Bật Camera Thời Gian Thực</button>
+                    <label for="file-upload" class="btn secondary">Tải Ảnh Khuôn Mặt Mẫu</label>
+                    <input id="file-upload" type="file" accept="image/*" style="display: none;">
+                    <button id="btn-record" class="btn success">Ghi Nhận Mẫu Thực Nghiệm</button>
+                </div>
+
+                <!-- Tùy chỉnh thông số đồ họa AR (Giai đoạn 4) -->
+                <div class="ar-controls">
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-mesh" checked> Hiển thị Lưới 3D (468 điểm)</label>
+                    </div>
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-makeup" checked> Phủ lớp trang điểm AR</label>
+                    </div>
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-pbr" checked> Hiệu ứng bóng PBR Shader</label>
+                    </div>
+                    <div class="control-item slider-item">
+                        <label>Hòa trộn Alpha (Opacity): <span id="val-alpha">0.65</span></label>
+                        <input type="range" id="rng-alpha" min="0.1" max="1.0" step="0.05" value="0.65">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CỘT PHẢI: KẾT QUẢ PHÂN TÍCH GIAI ĐOẠN 2 & 3 -->
+        <section class="right-panel">
+            <!-- GIAI ĐOẠN 2 -->
+            <div class="card">
+                <h2>Giai đoạn 2: Trích xuất Đặc trưng Hình học & Sắc tố da</h2>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <span class="metric-label">Góc nghiêng đầu (Affine Align)</span>
+                        <span class="metric-value" id="val-angle">0.0°</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Tỷ lệ khuôn mặt / Tỷ lệ vàng ($\phi=1.618$)</span>
+                        <span class="metric-value" id="val-golden">0.00 (Sai số: 0%)</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Độ tương phản (Facial Contrast)</span>
+                        <span class="metric-value" id="val-contrast">0.00</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Sức hút thị giác (Visual Weight)</span>
+                        <span class="metric-value highlight-blue" id="val-weight">Đang chờ...</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Không gian màu da (HSV / CIELAB)</span>
+                        <span class="metric-value" id="val-color-space">H:0 S:0 V:0 | b*:0</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Sắc tố da gốc (Undertone)</span>
+                        <span class="metric-value highlight-pink" id="val-undertone">Đang chờ...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GIAI ĐOẠN 3 -->
+            <div class="card">
+                <h2>Giai đoạn 3: Hệ chuyên gia IF-THEN & Gói dữ liệu JSON</h2>
+                <div class="recommendation-banner">
+                    <div class="rec-title">PHONG CÁCH ĐỀ XUẤT (TOTAL LOOK):</div>
+                    <div class="rec-style" id="val-style-name">Chưa có dữ liệu khuôn mặt</div>
+                    <div class="rec-desc" id="val-style-desc">Hãy bật Camera hoặc tải lên 1 bức ảnh chân dung để hệ thống phân tích.</div>
+                </div>
+                <div class="json-container">
+                    <div class="json-header">Gói thông số đầu ra (JSON Output chuyển sang Giai đoạn 4):</div>
+                    <pre id="json-output">{ "status": "waiting_for_input" }</pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- BẢNG SỐ LIỆU THỰC NGHIỆM (DÙNG ĐỂ ĐƯA VÀO MỤC V & VI CỦA BÀI BÁO) -->
+    <!-- BẢNG SỐ LIỆU THỰC NGHIỆM (DÙNG ĐỂ ĐƯA VÀO MỤC V & VI CỦA BÀI BÁO) -->
+    <section class="experiment-section">
+        <div class="card">
+            <div class="card-header">
+                <h2>Bảng Ghi Nhận Kết Quả Thực Nghiệm Hệ Thống (Dùng cho Mục Thực Nghiệm & Kết Quả)</h2>
+                <div class="badge-group">
+                    <button id="btn-clear-all" class="btn danger">Xóa Toàn Bộ Bảng</button>
+                    <button id="btn-export-csv" class="btn secondary">Xuất file Excel (CSV)</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="exp-table">
+                    <thead>
+                        <tr>
+                            <th>Mẫu thử</th>
+                            <th>Tỷ lệ nhân trắc</th>
+                            <th>Độ tương phản</th>
+                            <th>Visual Weight</th>
+                            <th>Chỉ số HSV / Lab(b*)</th>
+                            <th>Phân loại Undertone</th>
+                            <th>Phong cách đề xuất (Rule-based)</th>
+                            <th>Độ trễ xử lý (ms)</th>
+                            <th>Tốc độ (FPS)</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exp-tbody">
+                        <!-- Dữ liệu thực nghiệm sẽ tự động thêm vào đây -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>
