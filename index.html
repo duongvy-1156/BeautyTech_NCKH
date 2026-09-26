@@ -20,7 +20,7 @@
         <section class="left-panel">
             <div class="card">
                 <div class="card-header">
-                    <h2>Giai đoạn 1 & 4: Thu nhận ảnh & Kết xuất đồ họa AR</h2>
+                    <h2>Giai đoạn 1 & 4: Thu nhận ảnh, Tiền xử lý & Kết xuất AR</h2>
                     <div class="badge-group">
                         <span class="badge" id="fps-badge">FPS: 0</span>
                         <span class="badge" id="latency-badge">Độ trễ: 0 ms</span>
@@ -42,13 +42,25 @@
                     <button id="btn-record" class="btn success">Ghi Nhận Mẫu Thực Nghiệm</button>
                 </div>
 
-                <!-- Tùy chỉnh thông số đồ họa AR (Giai đoạn 4) -->
+                <!-- Tùy chỉnh thông số Tiền xử lý (GĐ 1) & Đồ họa AR (GĐ 4) -->
                 <div class="ar-controls">
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-awb" checked> Cân bằng trắng Gray World (GĐ 1)</label>
+                    </div>
                     <div class="control-item">
                         <label><input type="checkbox" id="chk-mesh" checked> Hiển thị Lưới 3D (468 điểm)</label>
                     </div>
                     <div class="control-item">
-                        <label><input type="checkbox" id="chk-makeup" checked> Phủ lớp trang điểm AR</label>
+                        <label><input type="checkbox" id="chk-Makeup" checked> Phủ toàn bộ lớp trang điểm AR</label>
+                    </div>
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-foundation" checked> Lớp Kem nền (Foundation)</label>
+                    </div>
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-contour" checked> Tạo khối & Bắt sáng (Contour/Highlight)</label>
+                    </div>
+                    <div class="control-item">
+                        <label><input type="checkbox" id="chk-eye-brow" checked> Chân mày, Eyeliner & Bọng mắt</label>
                     </div>
                     <div class="control-item">
                         <label><input type="checkbox" id="chk-pbr" checked> Hiệu ứng bóng PBR Shader</label>
@@ -65,15 +77,15 @@
         <section class="right-panel">
             <!-- GIAI ĐOẠN 2 -->
             <div class="card">
-                <h2>Giai đoạn 2: Trích xuất Đặc trưng Hình học & Sắc tố da</h2>
+                <h2>Giai đoạn 2: Trích xuất Đặc trưng Hình học 3D & Sắc tố da</h2>
                 <div class="metrics-grid">
                     <div class="metric-box">
-                        <span class="metric-label">Góc nghiêng đầu (Affine Align)</span>
-                        <span class="metric-value" id="val-angle">0.0°</span>
+                        <span class="metric-label">Tư thế đầu 3D (Roll / Yaw / Pitch)</span>
+                        <span class="metric-value" id="val-angle">R:0° | Y:0° | P:0°</span>
                     </div>
                     <div class="metric-box">
-                        <span class="metric-label">Tỷ lệ khuôn mặt / Tỷ lệ vàng ($\phi=1.618$)</span>
-                        <span class="metric-value" id="val-golden">0.00 (Sai số: 0%)</span>
+                        <span class="metric-label">Dáng mặt & Tỷ lệ vàng (&phi;=1.618)</span>
+                        <span class="metric-value highlight-blue" id="val-golden">Đang chờ...</span>
                     </div>
                     <div class="metric-box">
                         <span class="metric-label">Độ tương phản (Facial Contrast)</span>
@@ -84,7 +96,7 @@
                         <span class="metric-value highlight-blue" id="val-weight">Đang chờ...</span>
                     </div>
                     <div class="metric-box">
-                        <span class="metric-label">Không gian màu da (HSV / CIELAB)</span>
+                        <span class="metric-label">Màu da sau lọc Median & AWB</span>
                         <span class="metric-value" id="val-color-space">H:0 S:0 V:0 | b*:0</span>
                     </div>
                     <div class="metric-box">
@@ -104,13 +116,12 @@
                 </div>
                 <div class="json-container">
                     <div class="json-header">Gói thông số đầu ra (JSON Output chuyển sang Giai đoạn 4):</div>
-                    <pre id="json-output">{ "status": "waiting_for_input" }</pre>
+                    <pre id="json-output">{ "Trạng thái": "Đang chờ dữ liệu khuôn mặt đầu vào..." }</pre>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- BẢNG SỐ LIỆU THỰC NGHIỆM (DÙNG ĐỂ ĐƯA VÀO MỤC V & VI CỦA BÀI BÁO) -->
     <!-- BẢNG SỐ LIỆU THỰC NGHIỆM (DÙNG ĐỂ ĐƯA VÀO MỤC V & VI CỦA BÀI BÁO) -->
     <section class="experiment-section">
         <div class="card">
@@ -126,7 +137,7 @@
                     <thead>
                         <tr>
                             <th>Mẫu thử</th>
-                            <th>Tỷ lệ nhân trắc</th>
+                            <th>Dáng mặt & Tỷ lệ vàng</th>
                             <th>Độ tương phản</th>
                             <th>Visual Weight</th>
                             <th>Chỉ số HSV / Lab(b*)</th>
