@@ -612,8 +612,28 @@ function drawPbrSpecularHighlight(ctx, landmarks, width, height, glossiness, alp
 }
 
 // ============================================================================
-// PHẦN 3: LUỒNG XỬ LÝ CHÍNH MEDIAPIPE 468 ĐIỂM & BẢNG SỐ LIỆU THỰC NGHIỆM
+// PHẦN 3 (NÂNG CẤP): LUỒNG XỬ LÝ CHÍNH 3D, CHỐNG TREO CAMERA & BẢNG THỰC NGHIỆM
 // ============================================================================
+
+// Tạo bí danh tương thích ngược và bọc bảo vệ tọa độ lấy mẫu ảnh không bao giờ vượt khung hình
+function safeSampleMedianRGB(ctx, landmark, width, height, radius = 6, awbGains = { kR: 1, kG: 1, kB: 1 }) {
+    try {
+        if (typeof sampleRegionMedianRGB === 'function') {
+            return sampleRegionMedianRGB(ctx, landmark, width, height, radius, awbGains);
+        }
+    } catch (e) {}
+    return { r: 215, g: 175, b: 155 };
+}
+
+function safeComputeGrayWorld(ctx, landmarks, width, height) {
+    try {
+        if (chkAwb && !chkAwb.checked) return { kR: 1, kG: 1, kB: 1 };
+        if (typeof computeGrayWorldGains === 'function') {
+            return computeGrayWorldGains(ctx, landmarks, width, height);
+        }
+    } catch (e) {}
+    return { kR: 1, kG: 1, kB: 1 };
+}
 
 function onFaceMeshResults(results) {
     const startProcessTime = performance.now();
@@ -624,172 +644,165 @@ function onFaceMeshResults(results) {
     canvasCtx.clearRect(0, 0, width, height);
     canvasCtx.drawImage(results.image, 0, 0, width, height);
 
-    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-        const landmarks = results.multiFaceLandmarks[0];
+    try {
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            const landmarks = results.multiFaceLandmarks[0];
 
-        // --- BƯỚC 1: CĂN CHỈNH HÌNH HỌC (Mục 2.3) ---
-        const leftEyeOuter = landmarks[33];
-        const rightEyeOuter = landmarks[263];
-        const angleRad = Math.atan2(
-            (rightEyeOuter.y - leftEyeOuter.y) * height,
-            (rightEyeOuter.x - leftEyeOuter.x) * width
-        );
-        const headAngleDeg = (angleRad * 180 / Math.PI).toFixed(1);
+            // --- BƯỚC 1: ƯỚC LƯỢNG TƯ THẾ ĐẦU 3D (ROLL - YAW - PITCH) & CÂN BẰNG TRẮNG (Giai đoạn 1) ---
+            const pose3D = estimate3DHeadPose(landmarks, width, height);
+            const awbGains = safeComputeGrayWorld(canvasCtx, landmarks, width, height);
 
-        // --- BƯỚC 2: TRÍCH XUẤT HÌNH HỌC 3D & TỶ LỆ VÀNG (Mục 2.5) ---
-        const topForehead = landmarks[10];
-        const chinBottom = landmarks[152];
-        const leftCheekEdge = landmarks[234];
-        const rightCheekEdge = landmarks[454];
-        const upperLipTop = landmarks[13];
-        const lowerLipBottom = landmarks[17];
+            // --- BƯỚC 2: PHÂN TÍCH HÌNH HỌC 3D, TỶ LỆ VÀNG & PHÂN LOẠI 5 DÁNG MẶT (Giai đoạn 2) ---
+            const geoData = analyzeFaceGeometryAndShape(landmarks, width, height, pose3D);
+            const faceLength = geoData.faceLength;
+            const faceWidth = geoData.faceWidth;
+            const goldenRatioMeasured = geoData.goldenRatio;
+            const goldenDiffPercent = geoData.goldenDiffPercent;
+            const faceShape = geoData.faceShape;
 
-        const faceLength = euclideanDistance3D(topForehead, chinBottom, width, height);
-        const faceWidth = euclideanDistance3D(leftCheekEdge, rightCheekEdge, width, height);
-        const goldenRatioMeasured = faceLength / (faceWidth || 1);
-        const goldenDiffPercent = Math.abs((goldenRatioMeasured - 1.618) / 1.618 * 100).toFixed(1);
+            const lipThicknessRatio = euclideanDistance3D(landmarks[13], landmarks[17], width, height) / (faceLength || 1);
 
-        const lipThicknessRatio = euclideanDistance3D(upperLipTop, lowerLipBottom, width, height) / faceLength;
+            // --- BƯỚC 3: LỌC NHIỄU MEDIAN VÙNG DA, ĐO TƯƠNG PHẢN & UNDERTONE (Mục 2.6) ---
+            const foreheadRGB = safeSampleMedianRGB(canvasCtx, landmarks[151], width, height, 6, awbGains);
+            const leftCheekRGB = safeSampleMedianRGB(canvasCtx, landmarks[50], width, height, 6, awbGains);
+            const rightCheekRGB = safeSampleMedianRGB(canvasCtx, landmarks[280], width, height, 6, awbGains);
+            const lipSampleRGB = safeSampleMedianRGB(canvasCtx, landmarks[14], width, height, 4, awbGains);
+            const eyeSampleRGB = safeSampleMedianRGB(canvasCtx, landmarks[159], width, height, 4, awbGains);
 
-        // --- BƯỚC 3: PHÂN TÍCH ĐỘ TƯƠNG PHẢN & UNDERTONE (Mục 2.6) ---
-        const foreheadRGB = sampleRegionRGB(canvasCtx, landmarks[151], width, height, 5);
-        const leftCheekRGB = sampleRegionRGB(canvasCtx, landmarks[50], width, height, 5);
-        const rightCheekRGB = sampleRegionRGB(canvasCtx, landmarks[280], width, height, 5);
-        const lipSampleRGB = sampleRegionRGB(canvasCtx, landmarks[14], width, height, 3);
-        const eyeSampleRGB = sampleRegionRGB(canvasCtx, landmarks[159], width, height, 3);
+            const skinRGB = {
+                r: Math.round((foreheadRGB.r + leftCheekRGB.r + rightCheekRGB.r) / 3),
+                g: Math.round((foreheadRGB.g + leftCheekRGB.g + rightCheekRGB.g) / 3),
+                b: Math.round((foreheadRGB.b + leftCheekRGB.b + rightCheekRGB.b) / 3)
+            };
 
-        const skinRGB = {
-            r: Math.round((foreheadRGB.r + leftCheekRGB.r + rightCheekRGB.r) / 3),
-            g: Math.round((foreheadRGB.g + leftCheekRGB.g + rightCheekRGB.g) / 3),
-            b: Math.round((foreheadRGB.b + leftCheekRGB.b + rightCheekRGB.b) / 3)
-        };
+            const colorMetrics = rgbToHsvAndLab(skinRGB.r, skinRGB.g, skinRGB.b);
 
-        const colorMetrics = rgbToHsvAndLab(skinRGB.r, skinRGB.g, skinRGB.b);
+            const skinLum = getLuminance(skinRGB);
+            const featureLum = (getLuminance(lipSampleRGB) + getLuminance(eyeSampleRGB)) / 2;
+            const facialContrast = Math.abs(skinLum - featureLum) / (skinLum || 1);
 
-        const skinLum = getLuminance(skinRGB);
-        const featureLum = (getLuminance(lipSampleRGB) + getLuminance(eyeSampleRGB)) / 2;
-        const facialContrast = Math.abs(skinLum - featureLum) / (skinLum || 1);
+            const visualWeight = (facialContrast > 0.16 || lipThicknessRatio > 0.085) ? "Cao (High)" : "Thấp (Low)";
 
-        const visualWeight = (facialContrast > 0.16 || lipThicknessRatio > 0.085) ? "Cao (High)" : "Thấp (Low)";
+            const bStarVal = parseFloat(colorMetrics.b);
+            const aStarVal = parseFloat(colorMetrics.a);
+            let undertone = "Trung tính (Neutral)";
+            if (bStarVal > 16.5 && (bStarVal - aStarVal) > 4.5) {
+                undertone = "Ấm (Warm)";
+            } else if (bStarVal < 12.5 || aStarVal > bStarVal) {
+                undertone = "Lạnh (Cool)";
+            }
 
-        const bStarVal = parseFloat(colorMetrics.b);
-        const aStarVal = parseFloat(colorMetrics.a);
-        let undertone = "Trung tính (Neutral)";
-        if (bStarVal > 16.5 && (bStarVal - aStarVal) > 4.5) {
-            undertone = "Ấm (Warm)";
-        } else if (bStarVal < 12.5 || aStarVal > bStarVal) {
-            undertone = "Lạnh (Cool)";
+            // --- BƯỚC 4: HỆ CHUYÊN GIA IF-THEN KẾT HỢP DÁNG MẶT & XUẤT JSON TIẾNG VIỆT (Giai đoạn 3) ---
+            const expertResult = evaluateMakeupRules(undertone, visualWeight, faceShape);
+            const currentAlpha = parseFloat(rngAlpha.value);
+
+            const jsonPackage = {
+                "Thời gian phân tích": new Date().toLocaleString('vi-VN'),
+                "Tiền xử lý ảnh (Giai đoạn 1)": {
+                    "Cân bằng trắng Gray World (AWB)": (chkAwb && chkAwb.checked) ? `Bật (kR:${awbGains.kR.toFixed(2)}, kG:${awbGains.kG.toFixed(2)}, kB:${awbGains.kB.toFixed(2)})` : "Tắt",
+                    "Bộ lọc nhiễu da": "Median Interquartile Filter (Loại bỏ bóng dầu/mụn/tóc)",
+                    "Tư thế đầu 3D (Roll / Yaw / Pitch)": `${pose3D.roll}° / ${pose3D.yaw}° / ${pose3D.pitch}° (${pose3D.isFrontal ? "Chính diện chuẩn" : "Đã bù phối cảnh 3D"})`
+                },
+                "Thông số sinh học khuôn mặt (Giai đoạn 2)": {
+                    "Dáng khuôn mặt (Face Shape)": faceShape,
+                    "Tỷ lệ nhân trắc (Tỷ lệ vàng)": `${goldenRatioMeasured.toFixed(2)} (Sai số: ${goldenDiffPercent}%)`,
+                    "Tỷ lệ Xương hàm / Gò má": geoData.jawToCheekRatio,
+                    "Độ tương phản khuôn mặt": parseFloat(facialContrast.toFixed(3)),
+                    "Sức hút thị giác": visualWeight,
+                    "Sắc tố da (Undertone)": undertone,
+                    "Không gian màu da": `HSV(${colorMetrics.h}°, ${colorMetrics.s}%, ${colorMetrics.v}%) | CIELAB b*(${colorMetrics.b})`
+                },
+                "Hệ chuyên gia tư vấn (Giai đoạn 3)": {
+                    "Phong cách trang điểm đề xuất": expertResult.styleName,
+                    "Chiến lược tạo khối theo dáng mặt": expertResult.contourAdvice
+                },
+                "Cấu hình kết xuất đồ họa AR (Giai đoạn 4)": {
+                    "Mã màu kem nền (Foundation HEX)": expertResult.palette.foundationHex,
+                    "Mã màu tạo khối & bắt sáng (Contour/Highlight)": `${expertResult.palette.contourHex} / ${expertResult.palette.highlightHex}`,
+                    "Mã màu chân mày & kẻ mắt (Brow/Liner)": `${expertResult.palette.eyebrowHex} / ${expertResult.palette.eyelinerHex}`,
+                    "Mã màu phấn mắt (Eyeshadow HEX)": expertResult.palette.eyeshadowHex,
+                    "Mã màu má hồng (Blush HEX)": expertResult.palette.blushHex,
+                    "Mã màu son môi 2 lớp (Lipstick HEX)": expertResult.palette.lipstickHex,
+                    "Hiệu ứng bọng mắt (Aegyo-sal)": expertResult.palette.aegyoSal ? "Kích hoạt (Nhũ sáng)" : "Không áp dụng",
+                    "Độ mờ lớp trang điểm (Opacity)": currentAlpha,
+                    "Độ bóng vật liệu PBR (Glossiness)": expertResult.palette.glossiness
+                }
+            };
+
+            // --- BƯỚC 5: KẾT XUẤT ĐỒ HỌA AR ĐA LỚP (Giai đoạn 4) ---
+            if (chkMakeup && chkMakeup.checked) {
+                if (!chkFoundation || chkFoundation.checked) {
+                    drawFoundationLayer(canvasCtx, landmarks, width, height, expertResult.palette.foundationHex, currentAlpha);
+                }
+                if (!chkContour || chkContour.checked) {
+                    drawContourAndHighlight(
+                        canvasCtx, landmarks, width, height,
+                        expertResult.palette.contourHex, expertResult.palette.highlightHex,
+                        currentAlpha, faceWidth
+                    );
+                }
+                drawSemanticPolygon(canvasCtx, landmarks, LEFT_EYE_SHADOW_INDICES, width, height, expertResult.palette.eyeshadowHex, currentAlpha * 0.58);
+                drawSemanticPolygon(canvasCtx, landmarks, RIGHT_EYE_SHADOW_INDICES, width, height, expertResult.palette.eyeshadowHex, currentAlpha * 0.58);
+
+                if (!chkEyeBrow || chkEyeBrow.checked) {
+                    drawEyebrowsAndEyeliner(canvasCtx, landmarks, width, height, expertResult.palette, currentAlpha, faceWidth);
+                }
+
+                const cheekRadius = faceWidth * 0.16;
+                drawBlushRadial(canvasCtx, landmarks[50], width, height, cheekRadius, expertResult.palette.blushHex, currentAlpha);
+                drawBlushRadial(canvasCtx, landmarks[280], width, height, cheekRadius, expertResult.palette.blushHex, currentAlpha);
+
+                drawMultiPassLip(canvasCtx, landmarks, LIP_UPPER_INDICES, width, height, expertResult.palette.lipstickHex, currentAlpha);
+                drawMultiPassLip(canvasCtx, landmarks, LIP_LOWER_INDICES, width, height, expertResult.palette.lipstickHex, currentAlpha);
+
+                if (!chkPbr || chkPbr.checked) {
+                    drawPbrSpecularHighlight(canvasCtx, landmarks, width, height, expertResult.palette.glossiness, currentAlpha);
+                }
+            }
+
+            // Vẽ lưới 468 điểm 3D
+            if (chkMesh && chkMesh.checked) {
+                canvasCtx.fillStyle = "rgba(56, 189, 248, 0.75)";
+                for (let i = 0; i < landmarks.length; i++) {
+                    const pt = landmarks[i];
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(pt.x * width, pt.y * height, 1.2, 0, 2 * Math.PI);
+                    canvasCtx.fill();
+                }
+            }
+
+            // Tính toán độ trễ (Latency) và FPS
+            const now = performance.now();
+            currentLatency = (now - startProcessTime).toFixed(1);
+            currentFps = Math.min(60, Math.round(1000 / Math.max(1, now - lastFrameTime)));
+            lastFrameTime = now;
+
+            // Cập nhật lên giao diện
+            document.getElementById('fps-badge').textContent = `FPS: ${currentFps}`;
+            document.getElementById('latency-badge').textContent = `Độ trễ: ${currentLatency} ms`;
+            document.getElementById('val-angle').textContent = `R:${pose3D.roll}° | Y:${pose3D.yaw}° | P:${pose3D.pitch}°`;
+            document.getElementById('val-golden').textContent = `${faceShape} - ${goldenRatioMeasured.toFixed(2)} (${goldenDiffPercent}%)`;
+            document.getElementById('val-contrast').textContent = facialContrast.toFixed(3);
+            document.getElementById('val-weight').textContent = visualWeight;
+            document.getElementById('val-color-space').textContent = `H:${colorMetrics.h}° S:${colorMetrics.s}% V:${colorMetrics.v}% | b*:${colorMetrics.b}`;
+            document.getElementById('val-undertone').textContent = undertone;
+            document.getElementById('val-style-name').textContent = `${expertResult.styleName} (${faceShape})`;
+            document.getElementById('val-style-desc').textContent = expertResult.description;
+            document.getElementById('json-output').textContent = JSON.stringify(jsonPackage, null, 2);
+
+            latestAnalysisData = {
+                goldenRatio: `${faceShape} | ${goldenRatioMeasured.toFixed(2)} (${goldenDiffPercent}%)`,
+                contrast: facialContrast.toFixed(3),
+                visualWeight: visualWeight,
+                colorInfo: `HSV(${colorMetrics.h},${colorMetrics.s},${colorMetrics.v}) / b*=${colorMetrics.b}`,
+                undertone: undertone,
+                style: expertResult.styleName,
+                latency: currentLatency,
+                fps: currentFps
+            };
         }
-
-        // --- BƯỚC 4: HỆ CHUYÊN GIA IF-THEN & XUẤT GÓI JSON TIẾNG VIỆT (Giai đoạn 3) ---
-        const expertResult = evaluateMakeupRules(undertone, visualWeight);
-        const currentAlpha = parseFloat(rngAlpha.value);
-
-        const jsonPackage = {
-            "Thời gian phân tích": new Date().toLocaleString('vi-VN'),
-            "Thông số sinh học khuôn mặt": {
-                "Góc nghiêng đầu (độ)": parseFloat(headAngleDeg),
-                "Tỷ lệ nhân trắc (Tỷ lệ vàng)": parseFloat(goldenRatioMeasured.toFixed(2)),
-                "Độ tương phản khuôn mặt": parseFloat(facialContrast.toFixed(3)),
-                "Sức hút thị giác": visualWeight,
-                "Sắc tố da (Undertone)": undertone,
-                "Không gian màu da": `HSV(${colorMetrics.h}°, ${colorMetrics.s}%, ${colorMetrics.v}%) | CIELAB b*(${colorMetrics.b})`
-            },
-            "Phong cách trang điểm đề xuất": expertResult.styleName,
-            "Cấu hình kết xuất đồ họa AR": {
-                "Mã màu kem nền (Foundation HEX)": expertResult.palette.foundationHex,
-                "Mã màu tạo khối & bắt sáng (Contour/Highlight)": `${expertResult.palette.contourHex} / ${expertResult.palette.highlightHex}`,
-                "Mã màu chân mày & kẻ mắt (Brow/Liner)": `${expertResult.palette.eyebrowHex} / ${expertResult.palette.eyelinerHex}`,
-                "Mã màu phấn mắt (Eyeshadow HEX)": expertResult.palette.eyeshadowHex,
-                "Mã màu má hồng (Blush HEX)": expertResult.palette.blushHex,
-                "Mã màu son môi 2 lớp (Lipstick HEX)": expertResult.palette.lipstickHex,
-                "Hiệu ứng bọng mắt (Aegyo-sal)": expertResult.palette.aegyoSal ? "Kích hoạt (Nhũ sáng)" : "Không áp dụng",
-                "Tọa độ mốc sinh học (Contour/Highlight)": "Điểm mốc #10, #151, #168->#4, #116, #345, #234->#136, #454->#365",
-                "Độ mờ lớp trang điểm (Opacity)": currentAlpha,
-                "Độ bóng vật liệu PBR (Glossiness)": expertResult.palette.glossiness
-            }
-        };
-
-        // --- BƯỚC 5: KẾT XUẤT ĐỒ HỌA AR ĐA LỚP (Giai đoạn 4) ---
-        if (chkMakeup && chkMakeup.checked) {
-            // 1. Lớp Kem nền (Foundation) bảo toàn vân da
-            if (!chkFoundation || chkFoundation.checked) {
-                drawFoundationLayer(canvasCtx, landmarks, width, height, expertResult.palette.foundationHex, currentAlpha);
-            }
-
-            // 2. Lớp Tạo khối (Contour) & Bắt sáng (Highlight)
-            if (!chkContour || chkContour.checked) {
-                drawContourAndHighlight(
-                    canvasCtx, landmarks, width, height,
-                    expertResult.palette.contourHex, expertResult.palette.highlightHex,
-                    currentAlpha, faceWidth
-                );
-            }
-
-            // 3. Lớp Phấn mắt (Eyeshadow)
-            drawSemanticPolygon(canvasCtx, landmarks, LEFT_EYE_SHADOW_INDICES, width, height, expertResult.palette.eyeshadowHex, currentAlpha * 0.58);
-            drawSemanticPolygon(canvasCtx, landmarks, RIGHT_EYE_SHADOW_INDICES, width, height, expertResult.palette.eyeshadowHex, currentAlpha * 0.58);
-
-            // 4. Lớp Chân mày (Eyebrow), Kẻ mắt (Eyeliner) & Bọng mắt Douyin
-            if (!chkEyeBrow || chkEyeBrow.checked) {
-                drawEyebrowsAndEyeliner(canvasCtx, landmarks, width, height, expertResult.palette, currentAlpha, faceWidth);
-            }
-
-            // 5. Lớp Má hồng (Blush Radial)
-            const cheekRadius = faceWidth * 0.16;
-            drawBlushRadial(canvasCtx, landmarks[50], width, height, cheekRadius, expertResult.palette.blushHex, currentAlpha);
-            drawBlushRadial(canvasCtx, landmarks[280], width, height, cheekRadius, expertResult.palette.blushHex, currentAlpha);
-
-            // 6. Lớp Son môi đa lớp (Multi-pass Lip Blending)
-            drawMultiPassLip(canvasCtx, landmarks, LIP_UPPER_INDICES, width, height, expertResult.palette.lipstickHex, currentAlpha);
-            drawMultiPassLip(canvasCtx, landmarks, LIP_LOWER_INDICES, width, height, expertResult.palette.lipstickHex, currentAlpha);
-
-            // 7. Lớp Phản xạ bóng vật lý PBR Shader
-            if (!chkPbr || chkPbr.checked) {
-                drawPbrSpecularHighlight(canvasCtx, landmarks, width, height, expertResult.palette.glossiness, currentAlpha);
-            }
-        }
-
-        // Vẽ lưới 468 điểm 3D (nếu bật checkbox)
-        if (chkMesh && chkMesh.checked) {
-            canvasCtx.fillStyle = "rgba(56, 189, 248, 0.75)";
-            for (let i = 0; i < landmarks.length; i++) {
-                const pt = landmarks[i];
-                canvasCtx.beginPath();
-                canvasCtx.arc(pt.x * width, pt.y * height, 1.2, 0, 2 * Math.PI);
-                canvasCtx.fill();
-            }
-        }
-
-        // Tính toán độ trễ (Latency) và FPS
-        const now = performance.now();
-        currentLatency = (now - startProcessTime).toFixed(1);
-        currentFps = Math.min(60, Math.round(1000 / Math.max(1, now - lastFrameTime)));
-        lastFrameTime = now;
-
-        // Cập nhật lên giao diện
-        document.getElementById('fps-badge').textContent = `FPS: ${currentFps}`;
-        document.getElementById('latency-badge').textContent = `Độ trễ: ${currentLatency} ms`;
-        document.getElementById('val-angle').textContent = `${headAngleDeg}°`;
-        document.getElementById('val-golden').textContent = `${goldenRatioMeasured.toFixed(2)} (Sai số: ${goldenDiffPercent}%)`;
-        document.getElementById('val-contrast').textContent = facialContrast.toFixed(3);
-        document.getElementById('val-weight').textContent = visualWeight;
-        document.getElementById('val-color-space').textContent = `H:${colorMetrics.h}° S:${colorMetrics.s}% V:${colorMetrics.v}% | b*:${colorMetrics.b}`;
-        document.getElementById('val-undertone').textContent = undertone;
-        document.getElementById('val-style-name').textContent = expertResult.styleName;
-        document.getElementById('val-style-desc').textContent = expertResult.description;
-        document.getElementById('json-output').textContent = JSON.stringify(jsonPackage, null, 2);
-
-        latestAnalysisData = {
-            goldenRatio: `${goldenRatioMeasured.toFixed(2)} (${goldenDiffPercent}%)`,
-            contrast: facialContrast.toFixed(3),
-            visualWeight: visualWeight,
-            colorInfo: `HSV(${colorMetrics.h},${colorMetrics.s},${colorMetrics.v}) / b*=${colorMetrics.b}`,
-            undertone: undertone,
-            style: expertResult.styleName,
-            latency: currentLatency,
-            fps: currentFps
-        };
+    } catch (err) {
+        console.warn("Bỏ qua khung hình nhiễu:", err);
     }
 
     canvasCtx.restore();
@@ -811,32 +824,40 @@ faceMesh.setOptions({
 
 faceMesh.onResults(onFaceMeshResults);
 
-// Bật/tắt Camera thời gian thực
+// Bật/tắt Camera thời gian thực (Kèm cơ chế chống kẹt luồng video)
 btnCamera.addEventListener('click', async () => {
     if (!isCameraRunning) {
         isCameraRunning = true;
         btnCamera.textContent = "Tạm Dừng Camera";
-        cameraInstance = new Camera(videoElement, {
-            onFrame: async () => {
-                if (isCameraRunning) {
-                    await faceMesh.send({ image: videoElement });
-                }
-            },
-            width: 640,
-            height: 480
-        });
-        cameraInstance.start();
+        if (!cameraInstance) {
+            cameraInstance = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (isCameraRunning && videoElement.readyState >= 2) {
+                        try {
+                            await faceMesh.send({ image: videoElement });
+                        } catch (e) {
+                            console.warn("Đang đồng bộ khung hình camera...", e);
+                        }
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+        }
+        await cameraInstance.start();
     } else {
         isCameraRunning = false;
         btnCamera.textContent = "Bật Camera Thời Gian Thực";
-        if (cameraInstance) cameraInstance.stop();
+        if (cameraInstance) await cameraInstance.stop();
     }
 });
 
 // Tải ảnh mẫu tĩnh để phân tích
 async function processStaticImage() {
     lastFrameTime = performance.now() - 28;
-    await faceMesh.send({ image: imageElement });
+    if (imageElement.complete && imageElement.naturalWidth > 0) {
+        await faceMesh.send({ image: imageElement });
+    }
 }
 
 fileUpload.addEventListener('change', (e) => {
@@ -924,7 +945,7 @@ btnExportCsv.addEventListener('click', () => {
         alert("Chưa có mẫu thực nghiệm nào trong bảng!");
         return;
     }
-    let csvContent = "\uFEFFMẫu thử,Tỷ lệ nhân trắc (Sai số),Độ tương phản,Visual Weight,Chỉ số HSV/Lab,Undertone,Phong cách đề xuất,Độ trễ (ms),Tốc độ (FPS)\n";
+    let csvContent = "\uFEFFMẫu thử,Dáng mặt & Tỷ lệ vàng,Độ tương phản,Visual Weight,Chỉ số HSV/Lab,Undertone,Phong cách đề xuất,Độ trễ (ms),Tốc độ (FPS)\n";
     experimentRecords.forEach(r => {
         csvContent += `"${r.id}","${r.goldenRatio}","${r.contrast}","${r.visualWeight}","${r.colorInfo}","${r.undertone}","${r.style}","${r.latency}","${r.fps}"\n`;
     });

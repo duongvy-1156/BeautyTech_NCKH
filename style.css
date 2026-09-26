@@ -32,11 +32,13 @@ body {
     opacity: 0.9;
 }
 
+/* Khóa cứng tỷ lệ 2 cột: Cột ảnh bên trái chiếm đúng 50% màn hình, Cột phải 50% */
 .main-container {
     display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
     margin-bottom: 16px;
+    align-items: start;
 }
 
 .card {
@@ -61,6 +63,7 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
+    gap: 8px;
 }
 
 .card-header h2 {
@@ -70,40 +73,44 @@ body {
 .badge-group {
     display: flex;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .badge {
     background: #0f172a;
     color: #38bdf8;
-    padding: 4px 10px;
+    padding: 5px 10px;
     border-radius: 6px;
     font-size: 0.82rem;
     font-weight: 600;
     font-family: monospace;
+    white-space: nowrap;
 }
 
+/* Mở rộng khung hiển thị ảnh/Camera lớn tối đa trong nửa màn hình trái */
 .viewport-container {
     position: relative;
     width: 100%;
     background: #0f172a;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 380px;
+    min-height: 520px;
 }
 
 #output-canvas {
-    max-width: 100%;
-    height: auto;
+    width: 100%;
+    max-height: 680px;
+    object-fit: contain;
     display: block;
 }
 
 .controls-row {
     display: flex;
     gap: 10px;
-    margin-top: 12px;
+    margin-top: 14px;
     flex-wrap: wrap;
 }
 
@@ -135,6 +142,11 @@ body {
 
 .btn.success {
     background-color: #059669;
+    color: white;
+}
+
+.btn.danger {
+    background-color: #dc2626;
     color: white;
 }
 
@@ -177,7 +189,7 @@ body {
 }
 
 .metric-value {
-    font-size: 0.98rem;
+    font-size: 0.96rem;
     font-weight: 700;
     color: #1e293b;
 }
@@ -218,12 +230,14 @@ body {
     line-height: 1.4;
 }
 
+/* Tự động xuống dòng trong khung JSON để không bao giờ đẩy ép cột hình ảnh bên trái */
 .json-container {
     background: #0f172a;
     color: #a7f3d0;
-    padding: 10px;
+    padding: 12px;
     border-radius: 8px;
     font-size: 0.8rem;
+    max-width: 100%;
     overflow-x: auto;
 }
 
@@ -235,7 +249,9 @@ body {
 
 #json-output {
     font-family: 'Consolas', monospace;
-    line-height: 1.35;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .table-wrapper {
@@ -264,17 +280,6 @@ body {
     background-color: #f8fafc;
 }
 
-@media (max-width: 992px) {
-    .main-container {
-        grid-template-columns: 1fr;
-    }
-}
-/* Định dạng cho nút Xóa bảng và Xóa từng dòng */
-.btn.danger {
-    background-color: #dc2626;
-    color: white;
-}
-
 .btn-delete-row {
     background-color: #ef4444;
     color: white;
@@ -288,4 +293,10 @@ body {
 
 .btn-delete-row:hover {
     background-color: #b91c1c;
+}
+
+@media (max-width: 992px) {
+    .main-container {
+        grid-template-columns: 1fr;
+    }
 }
