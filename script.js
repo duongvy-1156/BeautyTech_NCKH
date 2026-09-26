@@ -881,7 +881,7 @@ fileUpload.addEventListener('change', (e) => {
 });
 
 // ============================================================================
-// MODULE QUẢN LÝ TÀI KHOẢN NGƯỜI DÙNG & CSDL ĐÁM MÂY FIREBASE (beautytech-nckh)
+// MODULE QUẢN LÝ TÀI KHOẢN NGƯỜI DÙNG & PHÂN QUYỀN CSDL FIREBASE (beautytech-nckh)
 // ============================================================================
 
 const firebaseConfig = {
@@ -898,24 +898,108 @@ const COLLECTION_NAME = "ket_qua_thuc_nghiem";
 const USER_COLLECTION = "tai_khoan_nguoi_dung";
 const fbStatusEl = document.getElementById('firebase-status');
 
-// Biến lưu thông tin người dùng đang đăng nhập
+// Biến lưu người dùng hiện tại & Mã phiên riêng biệt cho Khách (tránh lộ dữ liệu giữa các Khách)
 let currentUser = JSON.parse(localStorage.getItem('beautytech_user')) || null;
+const guestSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+let unsubscribeSnapshot = null;
 
 try {
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
     db = firebase.firestore();
-    if (fbStatusEl) {
-        fbStatusEl.textContent = "☁️ Đã kết nối CSDL Firebase (beautytech-nckh)";
-        fbStatusEl.style.color = "#059669";
-    }
 } catch (err) {
     console.error("Lỗi khởi tạo Firebase:", err);
 }
 
 // ----------------------------------------------------------------------------
-// 1. QUẢN LÝ POPUP ĐĂNG KÝ & ĐĂNG NHẬP RIÊNG BIỆT (LƯU HỒ SƠ LÀN DA FIREBASE)
+// 1. HÀM ĐỒNG BỘ LỊCH SỬ RIÊNG BIỆT THEO TỪNG NGƯỜI DÙNG (CHỈ THẤY DỮ LIỆU CỦA MÌNH)
+// ----------------------------------------------------------------------------
+function renderExperimentTable() {
+    const tbody = document.getElementById('exp-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (experimentRecords.length === 0) {
+        const emptyTr = document.createElement('tr');
+        emptyTr.innerHTML = `
+            <td colspan="11" style="padding: 18px; color: #64748b; font-style: italic;">
+                Chưa có lịch sử thực nghiệm nào của phiên/tài khoản này. (Toàn bộ CSDL tổng hợp được bảo mật trên Máy chủ Firebase)
+            </td>
+        `;
+        tbody.appendChild(emptyTr);
+        return;
+    }
+
+    experimentRecords.forEach((record, index) => {
+        record.id = `Mẫu #${index + 1}`;
+        const userDisplay = (record.tenDangNhap && record.tenDangNhap !== "khach_guest")
+            ? `<strong>${record.hoTen || record.tenDangNhap}</strong><br><span style="color:#64748b; font-size:0.78rem;">@${record.tenDangNhap}</span>`
+            : `<span style="color:#94a3b8;">Khách (Phiên hiện tại)</span>`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${record.id}</strong></td>
+            <td>${userDisplay}</td>
+            <td>${record.goldenRatio}</td>
+            <td>${record.contrast}</td>
+            <td>${record.visualWeight}</td>
+            <td>${record.colorInfo}</td>
+            <td><strong>${record.undertone}</strong></td>
+            <td style="color:#be185d; font-weight:700;">${record.style}</td>
+            <td>${record.latency} ms</td>
+            <td>${record.fps} FPS</td>
+            <td><button class="btn-delete-row" onclick="deleteSingleRecord('${record.docId || ''}', ${index})">Xóa</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function subscribeUserHistory() {
+    if (!db) return;
+
+    // Ngắt kết nối lắng nghe của tài khoản trước đó (nếu vừa đổi tài khoản/đăng xuất)
+    if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+    }
+
+    let queryRef;
+    if (currentUser && currentUser.tenDangNhap) {
+        // Nếu đã đăng nhập: CHỈ tải dữ liệu của đúng tên đăng nhập này
+        queryRef = db.collection(COLLECTION_NAME).where("tenDangNhap", "==", currentUser.tenDangNhap);
+        if (fbStatusEl) {
+            fbStatusEl.textContent = `🔒 Lịch sử riêng của @${currentUser.tenDangNhap} (CSDL tổng lưu tại Máy chủ Firebase)`;
+            fbStatusEl.style.color = "#059669";
+        }
+    } else {
+        // Nếu chưa đăng nhập (Khách): CHỈ hiển thị mẫu trong phiên vừa mở, không thấy của người khác
+        queryRef = db.collection(COLLECTION_NAME).where("guestSessionId", "==", guestSessionId);
+        if (fbStatusEl) {
+            fbStatusEl.textContent = "🔒 Chế độ Khách: Chỉ hiện phiên hiện tại (Toàn bộ lịch sử chỉ hiển thị trên Máy chủ Firebase)";
+            fbStatusEl.style.color = "#2563eb";
+        }
+    }
+
+    unsubscribeSnapshot = queryRef.onSnapshot((snapshot) => {
+        experimentRecords = [];
+        snapshot.forEach((doc) => {
+            experimentRecords.push({
+                docId: doc.id,
+                ...doc.data()
+            });
+        });
+        // Sắp xếp theo thứ tự thời gian tăng dần
+        experimentRecords.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        sampleCounter = experimentRecords.length;
+        renderExperimentTable();
+    }, (err) => {
+        console.error("Lỗi tải lịch sử cá nhân:", err);
+    });
+}
+
+// ----------------------------------------------------------------------------
+// 2. QUẢN LÝ POPUP ĐĂNG KÝ & ĐĂNG NHẬP RIÊNG BIỆT (LƯU HỒ SƠ LÀN DA FIREBASE)
 // ----------------------------------------------------------------------------
 const authLoggedOut = document.getElementById('auth-logged-out');
 const authLoggedIn = document.getElementById('auth-logged-in');
@@ -977,6 +1061,8 @@ function updateAuthUI() {
         if (authLoggedOut) authLoggedOut.style.display = 'flex';
         if (authLoggedIn) authLoggedIn.style.display = 'none';
     }
+    // Tự động làm mới bảng lịch sử theo đúng người dùng hiện tại
+    subscribeUserHistory();
 }
 updateAuthUI();
 
@@ -1096,54 +1182,8 @@ if (btnLogout) {
 }
 
 // ----------------------------------------------------------------------------
-// 2. HIỂN THỊ & ĐỒNG BỘ BẢNG KẾT QUẢ THỰC NGHIỆM KÈM TÊN ĐĂNG NHẬP
+// 3. GHI NHẬN MẪU THỬ LÊN FIREBASE (MÁY CHỦ LƯU TẤT CẢ, USER CHỈ THẤY CỦA MÌNH)
 // ----------------------------------------------------------------------------
-function renderExperimentTable() {
-    const tbody = document.getElementById('exp-tbody');
-    tbody.innerHTML = "";
-
-    experimentRecords.forEach((record, index) => {
-        record.id = `Mẫu #${index + 1}`;
-        const userDisplay = record.tenDangNhap
-            ? `<strong>${record.hoTen || record.tenDangNhap}</strong><br><span style="color:#64748b; font-size:0.78rem;">@${record.tenDangNhap}</span>`
-            : `<span style="color:#94a3b8;">Khách (Guest)</span>`;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><strong>${record.id}</strong></td>
-            <td>${userDisplay}</td>
-            <td>${record.goldenRatio}</td>
-            <td>${record.contrast}</td>
-            <td>${record.visualWeight}</td>
-            <td>${record.colorInfo}</td>
-            <td><strong>${record.undertone}</strong></td>
-            <td style="color:#be185d; font-weight:700;">${record.style}</td>
-            <td>${record.latency} ms</td>
-            <td>${record.fps} FPS</td>
-            <td><button class="btn-delete-row" onclick="deleteSingleRecord('${record.docId || ''}', ${index})">Xóa</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-// Lắng nghe dữ liệu thời gian thực từ Firebase
-if (db) {
-    db.collection(COLLECTION_NAME)
-        .orderBy("createdAt", "asc")
-        .onSnapshot((snapshot) => {
-            experimentRecords = [];
-            snapshot.forEach((doc) => {
-                experimentRecords.push({
-                    docId: doc.id,
-                    ...doc.data()
-                });
-            });
-            sampleCounter = experimentRecords.length;
-            renderExperimentTable();
-        });
-}
-
-// 3. Sự kiện bấm nút "Ghi Nhận Mẫu Thực Nghiệm" (Lưu kèm Tên đăng nhập & Họ tên)
 btnRecord.addEventListener('click', async () => {
     if (!latestAnalysisData) {
         alert("Hệ thống chưa nhận diện được khuôn mặt nào! Hãy bật Camera hoặc tải ảnh lên trước.");
@@ -1153,6 +1193,8 @@ btnRecord.addEventListener('click', async () => {
     const newRecord = {
         tenDangNhap: currentUser ? currentUser.tenDangNhap : "khach_guest",
         hoTen: currentUser ? currentUser.hoTen : "Khách thử nghiệm",
+        loaiDa: currentUser ? (currentUser.loaiDa || "Chưa cập nhật") : "Khách",
+        guestSessionId: currentUser ? null : guestSessionId,
         ...latestAnalysisData,
         createdAt: Date.now(),
         recordedTimeVN: new Date().toLocaleString('vi-VN')
@@ -1170,7 +1212,7 @@ btnRecord.addEventListener('click', async () => {
     }
 });
 
-// 4. Xóa 1 dòng hoặc xóa toàn bộ
+// 4. Xóa 1 dòng hoặc xóa lịch sử của riêng tài khoản đang đăng nhập
 window.deleteSingleRecord = async function(docId, index) {
     if (db && docId) {
         await db.collection(COLLECTION_NAME).doc(docId).delete();
@@ -1183,14 +1225,18 @@ window.deleteSingleRecord = async function(docId, index) {
 if (btnClearAll) {
     btnClearAll.addEventListener('click', async () => {
         if (experimentRecords.length === 0) {
-            alert("Bảng hiện tại đang trống!");
+            alert("Bảng lịch sử của bạn hiện đang trống!");
             return;
         }
-        if (confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu thực nghiệm trên cả Web và Firebase không?")) {
+        if (confirm("Bạn có chắc chắn muốn xóa lịch sử hiển thị của riêng bạn không? (Dữ liệu của những người dùng khác trên Máy chủ Firebase vẫn được giữ nguyên)")) {
             if (db) {
-                const snapshot = await db.collection(COLLECTION_NAME).get();
                 const batch = db.batch();
-                snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+                experimentRecords.forEach((rec) => {
+                    if (rec.docId) {
+                        const docRef = db.collection(COLLECTION_NAME).doc(rec.docId);
+                        batch.delete(docRef);
+                    }
+                });
                 await batch.commit();
             } else {
                 experimentRecords = [];
@@ -1201,7 +1247,7 @@ if (btnClearAll) {
     });
 }
 
-// 5. Xuất file Excel (CSV) có kèm cột Tên đăng nhập & Họ tên
+// 5. Xuất file Excel (CSV) lịch sử cá nhân
 btnExportCsv.addEventListener('click', () => {
     if (experimentRecords.length === 0) {
         alert("Chưa có mẫu thực nghiệm nào trong bảng!");
@@ -1215,6 +1261,6 @@ btnExportCsv.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Ket_Qua_Thuc_Nghiem_BeautyTech_Firebase.csv';
+    a.download = `Ket_Qua_Thuc_Nghiem_${currentUser ? currentUser.tenDangNhap : 'Phien_Khach'}.csv`;
     a.click();
 });
