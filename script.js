@@ -880,8 +880,223 @@ fileUpload.addEventListener('change', (e) => {
     reader.readAsDataURL(file);
 });
 
+// ============================================================================
+// MODULE QUẢN LÝ TÀI KHOẢN NGƯỜI DÙNG & CSDL ĐÁM MÂY FIREBASE (beautytech-nckh)
+// ============================================================================
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCmIL15CJvZ4U9v0n-WnABiNlkG8G3S5MM",
+    authDomain: "beautytech-nckh.firebaseapp.com",
+    projectId: "beautytech-nckh",
+    storageBucket: "beautytech-nckh.firebasestorage.app",
+    messagingSenderId: "923400136463",
+    appId: "1:923400136463:web:3250cfdb83cf0af48f807a"
+};
+
+let db = null;
+const COLLECTION_NAME = "ket_qua_thuc_nghiem";
+const USER_COLLECTION = "tai_khoan_nguoi_dung";
+const fbStatusEl = document.getElementById('firebase-status');
+
+// Biến lưu thông tin người dùng đang đăng nhập
+let currentUser = JSON.parse(localStorage.getItem('beautytech_user')) || null;
+
+try {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    if (fbStatusEl) {
+        fbStatusEl.textContent = "☁️ Đã kết nối CSDL Firebase (beautytech-nckh)";
+        fbStatusEl.style.color = "#059669";
+    }
+} catch (err) {
+    console.error("Lỗi khởi tạo Firebase:", err);
+}
+
 // ----------------------------------------------------------------------------
-// MODULE QUẢN LÝ BẢNG SỐ LIỆU THỰC NGHIỆM (THÊM / XÓA DÒNG / XÓA HẾT / XUẤT CSV)
+// 1. QUẢN LÝ POPUP ĐĂNG KÝ & ĐĂNG NHẬP RIÊNG BIỆT (LƯU HỒ SƠ LÀN DA FIREBASE)
+// ----------------------------------------------------------------------------
+const authLoggedOut = document.getElementById('auth-logged-out');
+const authLoggedIn = document.getElementById('auth-logged-in');
+const lblCurrentUser = document.getElementById('lbl-current-user');
+const lblCurrentUsername = document.getElementById('lbl-current-username');
+const lblUserMeta = document.getElementById('lbl-user-meta');
+const lblAvatarChar = document.getElementById('lbl-avatar-char');
+
+const authModal = document.getElementById('auth-modal');
+const btnOpenLogin = document.getElementById('btn-open-login');
+const btnOpenRegister = document.getElementById('btn-open-register');
+const btnCloseModal = document.getElementById('btn-close-modal');
+const tabBtnLogin = document.getElementById('tab-btn-login');
+const tabBtnRegister = document.getElementById('tab-btn-register');
+const formLogin = document.getElementById('form-login');
+const formRegister = document.getElementById('form-register');
+const authMessage = document.getElementById('auth-message');
+const btnLogout = document.getElementById('btn-logout');
+
+function showAuthMsg(text, type = 'error') {
+    if (!authMessage) return;
+    authMessage.style.display = 'block';
+    authMessage.className = `auth-msg ${type}`;
+    authMessage.textContent = text;
+}
+
+function switchAuthTab(mode) {
+    if (authMessage) authMessage.style.display = 'none';
+    if (mode === 'login') {
+        tabBtnLogin.classList.add('active');
+        tabBtnRegister.classList.remove('active');
+        formLogin.style.display = 'flex';
+        formRegister.style.display = 'none';
+    } else {
+        tabBtnRegister.classList.add('active');
+        tabBtnLogin.classList.remove('active');
+        formRegister.style.display = 'flex';
+        formLogin.style.display = 'none';
+    }
+}
+
+if (btnOpenLogin) btnOpenLogin.addEventListener('click', () => { authModal.style.display = 'flex'; switchAuthTab('login'); });
+if (btnOpenRegister) btnOpenRegister.addEventListener('click', () => { authModal.style.display = 'flex'; switchAuthTab('register'); });
+if (btnCloseModal) btnCloseModal.addEventListener('click', () => { authModal.style.display = 'none'; });
+if (tabBtnLogin) tabBtnLogin.addEventListener('click', () => switchAuthTab('login'));
+if (tabBtnRegister) tabBtnRegister.addEventListener('click', () => switchAuthTab('register'));
+
+function updateAuthUI() {
+    if (currentUser) {
+        if (authLoggedOut) authLoggedOut.style.display = 'none';
+        if (authLoggedIn) authLoggedIn.style.display = 'flex';
+        if (lblCurrentUser) lblCurrentUser.textContent = currentUser.hoTen;
+        if (lblCurrentUsername) lblCurrentUsername.textContent = `@${currentUser.tenDangNhap}`;
+        if (lblAvatarChar) lblAvatarChar.textContent = (currentUser.hoTen || "U").charAt(0).toUpperCase();
+        if (lblUserMeta) {
+            lblUserMeta.textContent = `Loại da: ${currentUser.loaiDa || 'Chưa cập nhật'} | Độ tuổi: ${currentUser.doTuoi || '--'} | Email: ${currentUser.email || 'Chưa cập nhật'}`;
+        }
+    } else {
+        if (authLoggedOut) authLoggedOut.style.display = 'flex';
+        if (authLoggedIn) authLoggedIn.style.display = 'none';
+    }
+}
+updateAuthUI();
+
+// Xử lý Form ĐĂNG NHẬP
+if (formLogin) {
+    formLogin.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim().toLowerCase();
+        const password = document.getElementById('login-password').value.trim();
+
+        if (!db) {
+            showAuthMsg("Chưa kết nối được CSDL Firebase!", "error");
+            return;
+        }
+
+        try {
+            const userRef = db.collection(USER_COLLECTION).doc(username);
+            const docSnap = await userRef.get();
+
+            if (!docSnap.exists) {
+                showAuthMsg("Tên đăng nhập chưa tồn tại! Hãy chuyển sang tab Đăng Ký Tài Khoản.", "error");
+                return;
+            }
+
+            const data = docSnap.data();
+            if (data.matKhau !== password) {
+                showAuthMsg("Mật khẩu không chính xác! Vui lòng kiểm tra lại.", "error");
+                return;
+            }
+
+            await userRef.update({ lanDangNhapCuoi: new Date().toLocaleString('vi-VN') });
+            currentUser = {
+                tenDangNhap: data.tenDangNhap,
+                hoTen: data.hoTen,
+                email: data.email || "",
+                doTuoi: data.doTuoi || "",
+                loaiDa: data.loaiDa || "Da hỗn hợp"
+            };
+            localStorage.setItem('beautytech_user', JSON.stringify(currentUser));
+            updateAuthUI();
+            showAuthMsg(`Đăng nhập thành công! Xin chào ${currentUser.hoTen}.`, "success");
+            setTimeout(() => { authModal.style.display = 'none'; }, 700);
+        } catch (err) {
+            console.error(err);
+            showAuthMsg("Lỗi truy vấn Firebase khi đăng nhập!", "error");
+        }
+    });
+}
+
+// Xử lý Form ĐĂNG KÝ TÀI KHOẢN MỚI
+if (formRegister) {
+    formRegister.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('reg-username').value.trim().toLowerCase();
+        const fullname = document.getElementById('reg-fullname').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const age = document.getElementById('reg-age').value.trim();
+        const skinType = document.getElementById('reg-skintype').value;
+        const password = document.getElementById('reg-password').value.trim();
+        const confirmPass = document.getElementById('reg-confirm').value.trim();
+
+        if (password.length < 4) {
+            showAuthMsg("Mật khẩu phải có ít nhất 4 ký tự!", "error");
+            return;
+        }
+        if (password !== confirmPass) {
+            showAuthMsg("Mật khẩu xác nhận không khớp!", "error");
+            return;
+        }
+
+        try {
+            const userRef = db.collection(USER_COLLECTION).doc(username);
+            const docSnap = await userRef.get();
+
+            if (docSnap.exists) {
+                showAuthMsg("Tên đăng nhập này đã có người sử dụng! Vui lòng chọn tên khác.", "error");
+                return;
+            }
+
+            const newUserDoc = {
+                tenDangNhap: username,
+                hoTen: fullname,
+                email: email || "Chưa cung cấp",
+                doTuoi: parseInt(age) || 21,
+                loaiDa: skinType,
+                matKhau: password,
+                vaiTro: "Người dùng thực nghiệm BeautyTech",
+                ngayTao: new Date().toLocaleString('vi-VN'),
+                lanDangNhapCuoi: new Date().toLocaleString('vi-VN')
+            };
+
+            await userRef.set(newUserDoc);
+            currentUser = {
+                tenDangNhap: username,
+                hoTen: fullname,
+                email: newUserDoc.email,
+                doTuoi: newUserDoc.doTuoi,
+                loaiDa: skinType
+            };
+            localStorage.setItem('beautytech_user', JSON.stringify(currentUser));
+            updateAuthUI();
+            showAuthMsg("Tạo tài khoản & lưu hồ sơ lên Firebase thành công!", "success");
+            setTimeout(() => { authModal.style.display = 'none'; }, 800);
+        } catch (err) {
+            console.error(err);
+            showAuthMsg("Lỗi khi lưu tài khoản mới lên Firebase!", "error");
+        }
+    });
+}
+
+if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+        currentUser = null;
+        localStorage.removeItem('beautytech_user');
+        updateAuthUI();
+    });
+}
+
+// ----------------------------------------------------------------------------
+// 2. HIỂN THỊ & ĐỒNG BỘ BẢNG KẾT QUẢ THỰC NGHIỆM KÈM TÊN ĐĂNG NHẬP
 // ----------------------------------------------------------------------------
 function renderExperimentTable() {
     const tbody = document.getElementById('exp-tbody');
@@ -889,9 +1104,14 @@ function renderExperimentTable() {
 
     experimentRecords.forEach((record, index) => {
         record.id = `Mẫu #${index + 1}`;
+        const userDisplay = record.tenDangNhap
+            ? `<strong>${record.hoTen || record.tenDangNhap}</strong><br><span style="color:#64748b; font-size:0.78rem;">@${record.tenDangNhap}</span>`
+            : `<span style="color:#94a3b8;">Khách (Guest)</span>`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${record.id}</strong></td>
+            <td>${userDisplay}</td>
             <td>${record.goldenRatio}</td>
             <td>${record.contrast}</td>
             <td>${record.visualWeight}</td>
@@ -900,59 +1120,101 @@ function renderExperimentTable() {
             <td style="color:#be185d; font-weight:700;">${record.style}</td>
             <td>${record.latency} ms</td>
             <td>${record.fps} FPS</td>
-            <td><button class="btn-delete-row" onclick="deleteSingleRecord(${index})">Xóa</button></td>
+            <td><button class="btn-delete-row" onclick="deleteSingleRecord('${record.docId || ''}', ${index})">Xóa</button></td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-window.deleteSingleRecord = function(index) {
-    experimentRecords.splice(index, 1);
-    sampleCounter = experimentRecords.length;
-    renderExperimentTable();
-};
+// Lắng nghe dữ liệu thời gian thực từ Firebase
+if (db) {
+    db.collection(COLLECTION_NAME)
+        .orderBy("createdAt", "asc")
+        .onSnapshot((snapshot) => {
+            experimentRecords = [];
+            snapshot.forEach((doc) => {
+                experimentRecords.push({
+                    docId: doc.id,
+                    ...doc.data()
+                });
+            });
+            sampleCounter = experimentRecords.length;
+            renderExperimentTable();
+        });
+}
 
-btnRecord.addEventListener('click', () => {
+// 3. Sự kiện bấm nút "Ghi Nhận Mẫu Thực Nghiệm" (Lưu kèm Tên đăng nhập & Họ tên)
+btnRecord.addEventListener('click', async () => {
     if (!latestAnalysisData) {
         alert("Hệ thống chưa nhận diện được khuôn mặt nào! Hãy bật Camera hoặc tải ảnh lên trước.");
         return;
     }
-    sampleCounter = experimentRecords.length + 1;
-    const record = {
-        id: `Mẫu #${sampleCounter}`,
-        ...latestAnalysisData
+
+    const newRecord = {
+        tenDangNhap: currentUser ? currentUser.tenDangNhap : "khach_guest",
+        hoTen: currentUser ? currentUser.hoTen : "Khách thử nghiệm",
+        ...latestAnalysisData,
+        createdAt: Date.now(),
+        recordedTimeVN: new Date().toLocaleString('vi-VN')
     };
-    experimentRecords.push(record);
-    renderExperimentTable();
+
+    if (db) {
+        try {
+            await db.collection(COLLECTION_NAME).add(newRecord);
+        } catch (err) {
+            console.error("Lỗi lưu mẫu lên Firebase:", err);
+        }
+    } else {
+        experimentRecords.push(newRecord);
+        renderExperimentTable();
+    }
 });
 
+// 4. Xóa 1 dòng hoặc xóa toàn bộ
+window.deleteSingleRecord = async function(docId, index) {
+    if (db && docId) {
+        await db.collection(COLLECTION_NAME).doc(docId).delete();
+    } else {
+        experimentRecords.splice(index, 1);
+        renderExperimentTable();
+    }
+};
+
 if (btnClearAll) {
-    btnClearAll.addEventListener('click', () => {
+    btnClearAll.addEventListener('click', async () => {
         if (experimentRecords.length === 0) {
             alert("Bảng hiện tại đang trống!");
             return;
         }
-        if (confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu trong bảng thực nghiệm không?")) {
-            experimentRecords = [];
-            sampleCounter = 0;
-            renderExperimentTable();
+        if (confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu thực nghiệm trên cả Web và Firebase không?")) {
+            if (db) {
+                const snapshot = await db.collection(COLLECTION_NAME).get();
+                const batch = db.batch();
+                snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+                await batch.commit();
+            } else {
+                experimentRecords = [];
+                sampleCounter = 0;
+                renderExperimentTable();
+            }
         }
     });
 }
 
+// 5. Xuất file Excel (CSV) có kèm cột Tên đăng nhập & Họ tên
 btnExportCsv.addEventListener('click', () => {
     if (experimentRecords.length === 0) {
         alert("Chưa có mẫu thực nghiệm nào trong bảng!");
         return;
     }
-    let csvContent = "\uFEFFMẫu thử,Dáng mặt & Tỷ lệ vàng,Độ tương phản,Visual Weight,Chỉ số HSV/Lab,Undertone,Phong cách đề xuất,Độ trễ (ms),Tốc độ (FPS)\n";
-    experimentRecords.forEach(r => {
-        csvContent += `"${r.id}","${r.goldenRatio}","${r.contrast}","${r.visualWeight}","${r.colorInfo}","${r.undertone}","${r.style}","${r.latency}","${r.fps}"\n`;
+    let csvContent = "\uFEFFMẫu thử,Tên đăng nhập,Họ và tên,Dáng mặt & Tỷ lệ vàng,Độ tương phản,Visual Weight,Chỉ số HSV/Lab,Undertone,Phong cách đề xuất,Độ trễ (ms),Tốc độ (FPS),Thời gian lưu\n";
+    experimentRecords.forEach((r, idx) => {
+        csvContent += `"Mẫu #${idx + 1}","${r.tenDangNhap || 'khach_guest'}","${r.hoTen || 'Khách'}","${r.goldenRatio}","${r.contrast}","${r.visualWeight}","${r.colorInfo}","${r.undertone}","${r.style}","${r.latency}","${r.fps}","${r.recordedTimeVN || ''}"\n`;
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Ket_Qua_Thuc_Nghiem_BeautyTech.csv';
+    a.download = 'Ket_Qua_Thuc_Nghiem_BeautyTech_Firebase.csv';
     a.click();
 });

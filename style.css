@@ -300,3 +300,194 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Định dạng Thanh Hồ sơ Người dùng & Popup Modal Đăng nhập/Đăng ký */
+.auth-bar {
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    background: linear-gradient(to right, #ffffff, #fdf2f8);
+    border-left: 5px solid #be185d;
+}
+
+.auth-Row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.auth-info-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.auth-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.logged-in-avatar {
+    background: linear-gradient(135deg, #be185d, #4f46e5);
+    color: white;
+}
+
+.auth-title {
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 0.95rem;
+}
+
+.auth-subtitle {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.user-tag {
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-left: 6px;
+}
+
+/* Hộp thoại Modal giữa màn hình */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 16px;
+}
+
+.modal-box {
+    background: white;
+    width: 100%;
+    max-width: 480px;
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25);
+    animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.modal-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+}
+
+.tab-btn {
+    padding: 9px;
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #64748b;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    background: white;
+    color: #be185d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.auth-msg {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+
+.auth-msg.error {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.auth-msg.success {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.form-group input, .form-group select {
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.88rem;
+}
+
+.form-group input:focus, .form-group select:focus {
+    outline: 2px solid #be185d;
+    border-color: transparent;
+}
+
+.full-width {
+    width: 100%;
+    padding: 11px;
+    margin-top: 6px;
+    font-size: 0.92rem;
+}

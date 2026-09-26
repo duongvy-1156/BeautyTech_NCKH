@@ -8,12 +8,124 @@
     <!-- Nạp thư viện AI MediaPipe Face Mesh (468 điểm 3D) của Google -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <!-- Nạp thư viện Firebase SDK (App & Cloud Firestore) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <header class="app-header">
         <h1>HỆ THỐNG BEAUTY TECH - TƯ VẤN & MÔ PHỎNG TRANG ĐIỂM AR THỜI GIAN THỰC</h1>
         <p>Thực nghiệm bài báo: Công nghệ lựa chọn phong cách trang điểm cho phụ nữ hiện đại (Pipeline 4 Giai đoạn)</p>
     </header>
+
+    <!-- THANH ĐĂNG KÝ / ĐĂNG NHẬP LƯU CSDL NGƯỜI DÙNG FIREBASE -->
+    <!-- THANH TRẠNG THÁI NGƯỜI DÙNG & NÚT MỞ POPUP ĐĂNG NHẬP / ĐĂNG KÝ -->
+    <section class="auth-bar card">
+        <div id="auth-logged-out" class="auth-Row">
+            <div class="auth-info-left">
+                <span class="auth-avatar">👤</span>
+                <div>
+                    <div class="auth-title">Chế độ Khách (Guest Mode)</div>
+                    <div class="auth-subtitle">Đăng nhập tài khoản để lưu hồ sơ làn da và lịch sử thực nghiệm lên Firebase Cloud</div>
+                </div>
+            </div>
+            <div class="badge-group">
+                <button id="btn-open-login" class="btn primary">Đăng nhập</button>
+                <button id="btn-open-register" class="btn secondary">Đăng ký tài khoản</button>
+            </div>
+        </div>
+
+        <div id="auth-logged-in" class="auth-Row" style="display: none;">
+            <div class="auth-info-left">
+                <span class="auth-avatar logged-in-avatar" id="lbl-avatar-char">V</span>
+                <div>
+                    <div class="auth-welcome">
+                        Xin chào, <strong id="lbl-current-user" style="color:#be185d;"></strong>
+                        <span class="user-tag" id="lbl-current-username"></span>
+                    </div>
+                    <div class="auth-subtitle" id="lbl-user-meta">Loại da: Đang tải... | Email: ...</div>
+                </div>
+            </div>
+            <div class="badge-group">
+                <button id="btn-logout" class="btn danger">Đăng xuất</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- HỘP THOẠI POPUP (MODAL) ĐĂNG NHẬP & ĐĂNG KÝ 2 TAB CHUYÊN NGHIỆP -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <button id="btn-close-modal" class="modal-close">&times;</button>
+            
+            <!-- Chuyển đổi 2 Tab -->
+            <div class="modal-tabs">
+                <button id="tab-btn-login" class="tab-btn active">Đăng Nhập</button>
+                <button id="tab-btn-register" class="tab-btn">Đăng Ký Tài Khoản</button>
+            </div>
+
+            <!-- Khung thông báo lỗi / thành công ngay trong form (thay thế alert) -->
+            <div id="auth-message" class="auth-msg" style="display: none;"></div>
+
+            <!-- FORM 1: ĐĂNG NHẬP -->
+            <form id="form-login" class="auth-form">
+                <div class="form-group">
+                    <label>Tên đăng nhập</label>
+                    <input type="text" id="login-username" placeholder="Nhập tên đăng nhập (VD: havy_agu)" required>
+                </div>
+                <div class="form-group">
+                    <label>Mật khẩu</label>
+                    <input type="password" id="login-password" placeholder="Nhập mật khẩu" required>
+                </div>
+                <button type="submit" class="btn primary full-width">Đăng Nhập Hệ Thống</button>
+            </form>
+
+            <!-- FORM 2: ĐĂNG KÝ HỒ SƠ LÀM ĐẸP MỚI -->
+            <form id="form-register" class="auth-form" style="display: none;">
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Tên đăng nhập *</label>
+                        <input type="text" id="reg-username" placeholder="VD: havy_agu" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Họ và tên *</label>
+                        <input type="text" id="reg-fullname" placeholder="VD: Dương Hạ Vy" required>
+                    </div>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Email liên hệ</label>
+                        <input type="email" id="reg-email" placeholder="VD: havy@agu.edu.vn">
+                    </div>
+                    <div class="form-group">
+                        <label>Độ tuổi</label>
+                        <input type="number" id="reg-age" placeholder="VD: 21" min="12" max="80" value="21">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Đặc điểm nền da tự nhiên (Phục vụ tư vấn kem nền)</label>
+                    <select id="reg-skintype">
+                        <option value="Da hỗn hợp (Combination)">Da hỗn hợp (Combination Skin)</option>
+                        <option value="Da dầu (Oily)">Da dầu / Dễ đổ bóng (Oily Skin)</option>
+                        <option value="Da khô (Dry)">Da khô / Cần cấp ẩm (Dry Skin)</option>
+                        <option value="Da thường (Normal)">Da thường (Normal Skin)</option>
+                        <option value="Da nhạy cảm (Sensitive)">Da nhạy cảm (Sensitive Skin)</option>
+                    </select>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Mật khẩu *</label>
+                        <input type="password" id="reg-password" placeholder="Tối thiểu 4 ký tự" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nhập lại mật khẩu *</label>
+                        <input type="password" id="reg-confirm" placeholder="Xác nhận mật khẩu" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn secondary full-width">Tạo Tài Khoản & Lưu Lên Firebase</button>
+            </form>
+        </div>
+    </div>
 
     <main class="main-container">
         <!-- CỘT TRÁI: MÀN HÌNH CAMERA AR & ĐIỀU KHIỂN -->
@@ -126,7 +238,7 @@
     <section class="experiment-section">
         <div class="card">
             <div class="card-header">
-                <h2>Bảng Ghi Nhận Kết Quả Thực Nghiệm Hệ Thống (Dùng cho Mục Thực Nghiệm & Kết Quả)</h2>
+                <h2>Bảng Ghi Nhận Kết Quả Thực Nghiệm Hệ Thống <span id="firebase-status" style="font-size:0.82rem; color:#059669; font-weight:600;">(Đang kết nối Firebase...)</span></h2>
                 <div class="badge-group">
                     <button id="btn-clear-all" class="btn danger">Xóa Toàn Bộ Bảng</button>
                     <button id="btn-export-csv" class="btn secondary">Xuất file Excel (CSV)</button>
@@ -137,6 +249,7 @@
                     <thead>
                         <tr>
                             <th>Mẫu thử</th>
+                            <th>Người dùng (Username)</th>
                             <th>Dáng mặt & Tỷ lệ vàng</th>
                             <th>Độ tương phản</th>
                             <th>Visual Weight</th>
